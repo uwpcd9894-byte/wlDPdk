@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>VOID STRIKER: RELOADED</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
+  
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; }
+    body { background: #050508; color: #fff; overflow: hidden; font-family: 'Noto Sans KR', sans-serif; }
+    .font-sci { font-family: 'Orbitron', sans-serif; }
+    
+    #game-container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: radial-gradient(circle at center, #0a0a1a 0%, #020205 100%);
+    }
+
+    canvas {
+      display: block;
+      background: transparent;
+      box-shadow: 0 0 50px rgba(0, 150, 255, 0.1);
+      max-width: 100%;
+      max-height: 100%;
+    }
+
+    /* UI Overlay Layer */
+    #ui-layer {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      pointer-events: none;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 10;
+    }
+
+    /* Screens */
+    .screen {
+      pointer-events: auto;
+      background: rgba(10, 15, 30, 0.9);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(0, 150, 255, 0.3);
+      border-radius: 16px;
+      padding: 2rem;
+      width: 90%;
+      max-width: 500px;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      box-shadow: 0 0 30px rgba(0, 100, 255, 0.3), inset 0 0 20px rgba(0, 150, 255, 0.15);
+      animation: fadeIn 0.3s ease-out;
+    }
+    .screen.active { display: flex; }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+    /* Custom Elements */
+    .btn {
+      width: 100%; padding: 14px; margin-top: 10px;
+      background: linear-gradient(90deg, rgba(0, 100, 255, 0.2), rgba(0, 200, 255, 0.2));
+      border: 1px solid #0cf; color: #0cf;
+      border-radius: 8px; cursor: pointer;
+      font-weight: bold; letter-spacing: 2px;
+      transition: all 0.2s; text-transform: uppercase;
+    }
+    .btn:hover { background: rgba(0, 200, 255, 0.4); box-shadow: 0 0 15px #0cf; text-shadow: 0 0 5px #0cf; }
+
+    .ship-card, .diff-card {
+      background: rgba(0, 0, 0, 0.5); border: 1px solid #334;
+      border-radius: 8px; padding: 12px; cursor: pointer; transition: all 0.2s;
+      flex: 1; text-align: center; display: flex; flex-direction: column; align-items: center;
+    }
+    .ship-card:hover, .diff-card:hover { transform: translateY(-3px); border-color: #0cf; background: rgba(0, 50, 100, 0.5); }
+    .ship-card.selected, .diff-card.selected { border-color: #0cf; background: rgba(0, 100, 200, 0.4); box-shadow: 0 0 15px rgba(0, 200, 255, 0.4); }
+
+    .upg-card {
+      background: rgba(10, 15, 30, 0.95); border: 1px solid #446;
+      border-radius: 12px; padding: 16px; cursor: pointer; transition: all 0.2s;
+      width: 100%; display: flex; align-items: center; gap: 16px; margin-bottom: 12px;
+    }
+    .upg-card:hover { transform: scale(1.02); background: rgba(20, 30, 60, 0.95); border-color: #ffb800; box-shadow: 0 0 20px rgba(255, 184, 0, 0.4); }
+    .upg-icon { font-size: 28px; width: 40px; text-align: center; }
+    .upg-info { flex: 1; text-align: left; }
+
+    .text-glow-blue { text-shadow: 0 0 10px rgba(0, 150, 255, 0.8); }
+    .text-glow-red { text-shadow: 0 0 10px rgba(255, 50, 50, 0.8); }
+    .text-glow-green { text-shadow: 0 0 10px rgba(50, 255, 50, 0.8); }
+  </style>
+</head>
+<body>
+
+<div id="game-container">
+  <canvas id="gameCanvas" width="540" height="800"></canvas>
+  
+  <div id="ui-layer">
+    <!-- Title Screen -->
+    <div id="screen-title" class="screen active">
+      <h1 class="text-4xl font-sci font-black text-white text-glow-blue tracking-widest mb-1 text-center">VOID STRIKER</h1>
+      <p class="text-xs text-blue-300 tracking-[0.3em] mb-6 text-center">RELOADED ENGINE</p>
+      
+      <h3 class="text-sm text-gray-400 mb-2 align-self-start w-full font-bold">기체 선택</h3>
+      <div class="flex gap-2 w-full mb-5">
+        <div class="ship-card selected" onclick="selectShip(0)" id="ship-0">
+          <span class="text-2xl mb-1">🚀</span>
+          <div class="font-sci font-bold text-sm text-blue-300">FALCON</div>
+          <div class="text-[10px] text-gray-400 mt-1">밸런스형</div>
+        </div>
+        <div class="ship-card" onclick="selectShip(1)" id="ship-1">
+          <span class="text-2xl mb-1">🔥</span>
+          <div class="font-sci font-bold text-sm text-red-400">VIPER</div>
+          <div class="text-[10px] text-gray-400 mt-1">공격형</div>
+        </div>
+        <div class="ship-card" onclick="selectShip(2)" id="ship-2">
+          <span class="text-2xl mb-1">⚡</span>
+          <div class="font-sci font-bold text-sm text-purple-400">PHANTOM</div>
+          <div class="text-[10px] text-gray-400 mt-1">속도형</div>
+        </div>
+      </div>
+
+      <h3 class="text-sm text-gray-400 mb-2 align-self-start w-full font-bold">난이도</h3>
+      <div class="flex gap-2 w-full mb-6">
+        <div class="diff-card" onclick="selectDiff(0)" id="diff-0"><div class="text-xs font-bold text-green-400">EASY</div></div>
+        <div class="diff-card selected" onclick="selectDiff(1)" id="diff-1"><div class="text-xs font-bold text-blue-400">NORMAL</div></div>
+        <div class="diff-card" onclick="selectDiff(2)" id="diff-2"><div class="text-xs font-bold text-orange-400">HARD</div></div>
+      </div>
+
+      <button class="btn font-sci" onclick="startGame()">System Engage</button>
+      <p class="text-[10px] text-gray-500 mt-4 text-center">이동: WASD, 방향키 또는 터치 드래그<br>공격: 자동 발사<br><span class="text-yellow-500">Wave 5 / Wave 10 보스 강습 주의!</span></p>
+    </div>
+
+    <!-- Upgrade Screen -->
+    <div id="screen-upgrade" class="screen">
+      <h2 class="text-2xl font-sci font-bold text-yellow-400 mb-1 text-glow-red">WAVE CLEARED</h2>
+      <p class="text-xs text-gray-300 mb-6" id="upg-desc">전투 시스템을 강화하십시오</p>
+      <div id="upgrade-container" class="w-full"></div>
+    </div>
+
+    <!-- Game Over Screen -->
+    <div id="screen-gameover" class="screen">
+      <h2 id="go-title" class="text-4xl font-sci font-black text-red-500 mb-2 text-glow-red">GAME OVER</h2>
+      <div class="w-full bg-black/50 rounded-lg p-4 mb-6 border border-red-950 text-center">
+        <p class="text-xs text-gray-400 mb-1">최종 점수</p>
+        <p class="text-3xl font-sci font-bold text-white text-glow-blue" id="go-score">0</p>
+        <p class="text-sm text-blue-300 mt-2" id="go-wave">WAVE 1</p>
+      </div>
+      <button class="btn font-sci" onclick="showTitle()">Return to Base</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+// 해상도 대응
+let W = 540;
+let H = 800;
+
+// 기기 대응 리사이징 로직
+function resizeCanvas() {
+  const container = document.getElementById('game-container');
+  const aspect = 540 / 800;
+  let w = window.innerWidth;
+  let h = window.innerHeight;
+  
+  if (w / h > aspect) w = h * aspect;
+  else h = w / aspect;
+  
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+// 타격감 및 게임 진행 글로벌 변수
+let rafId = null;
+let gameState = 'title'; // title, playing, upgrade, gameover
+let frame = 0;
+let hitStop = 0; // 타격감: 화면 일시정지 프레임 수
+let shakeX = 0, shakeY = 0; // 타격감: 화면 흔들림
+let shakePower = 0;
+let score = 0, wave = 0;
+let keys = {};
+let isTouch = false, touchX = 0, touchY = 0;
+
+let audioCtx = null;
+function initAudio() {
+  if (!audioCtx) {
+    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){}
+  }
+}
+
+// 쥬스 효과: 진동
+function vibe(pattern) {
+  if (navigator.vibrate) {
+    try { navigator.vibrate(pattern); } catch(e){}
+  }
+}
+
+// 오디오 사운드 재생기
+function playSound(type) {
+  if (!audioCtx) return;
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  const t = audioCtx.currentTime;
+  
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+
+  if (type === 'shoot') {
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(800, t);
+    osc.frequency.exponentialRampToValueAtTime(100, t + 0.1);
+    gain.gain.setValueAtTime(0.08, t);
+    gain.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
+    osc.start(t); osc.stop(t + 0.1);
+  } else if (type === 'hit') {
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(250, t);
+    osc.frequency.exponentialRampToValueAtTime(50, t + 0.12);
+    gain.gain.setValueAtTime(0.35, t);
+    gain.gain.exponentialRampToValueAtTime(0.01, t + 0.12);
+    osc.start(t); osc.stop(t + 0.12);
+  } else if (type === 'explosion') {
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(120, t);
+    osc.frequency.exponentialRampToValueAtTime(20, t + 0.5);
+    gain.gain.setValueAtTime(0.5, t);
+    gain.gain.exponentialRampToValueAtTime(0.01, t + 0.5);
+    osc.start(t); osc.stop(t + 0.5);
+  } else if (type === 'player_hit') {
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(160, t);
+    osc.frequency.linearRampToValueAtTime(30, t + 0.3);
+    gain.gain.setValueAtTime(0.6, t);
+    gain.gain.linearRampToValueAtTime(0.01, t + 0.3);
+    osc.start(t); osc.stop(t + 0.3);
+  } else if (type === 'upgrade') {
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(440, t);
+    osc.frequency.linearRampToValueAtTime(880, t + 0.2);
+    gain.gain.setValueAtTime(0.25, t);
+    gain.gain.linearRampToValueAtTime(0.01, t + 0.3);
+    osc.start(t); osc.stop(t + 0.3);
+  } else if (type === 'boss_laser') {
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(600, t);
+    osc.frequency.exponentialRampToValueAtTime(80, t + 0.25);
+    gain.gain.setValueAtTime(0.18, t);
+    gain.gain.exponentialRampToValueAtTime(0.01, t + 0.25);
+    osc.start(t); osc.stop(t + 0.25);
+  }
+}
+
+const SHIPS = [
+  { name: 'FALCON', color: '#00ccff', speed: 6, fireRate: 8, bulletCount: 1, damage: 1 },
+  { name: 'VIPER', color: '#ff4444', speed: 4.5, fireRate: 12, bulletCount: 2, damage: 1.5 },
+  { name: 'PHANTOM', color: '#cc44ff', speed: 7.5, fireRate: 10, bulletCount: 1, damage: 1 }
+];
+
+const DIFFS = [
+  { name: 'EASY', hpMul: 0.6, spdMul: 0.8, scoreMul: 0.8 },
+  { name: 'NORMAL', hpMul: 1.0, spdMul: 1.0, scoreMul: 1.0 },
+  { name: 'HARD', hpMul: 1.5, spdMul: 1.3, scoreMul: 1.5 }
+];
+
+const UPGRADES = [
+  { id: 'fireRate', name: '가속 엔진', desc: '발사 속도 증가', icon: '⚡' },
+  { id: 'bulletCount', name: '다연장포', desc: '동시 발사량 증가', icon: '💥' },
+  { id: 'damage', name: '고폭탄', desc: '공격력 대폭 증가', icon: '🔥' },
+  { id: 'spread', name: '확산 포신', desc: '발사 각도 넓어짐', icon: '〰' },
+  { id: 'heal', name: '나노 수리', desc: '체력 2 회복 (최대치 초과 불가)', icon: '🔧' }
+];
+
+let shipIdx = 0;
+let diffIdx = 1;
+let player = {};
+let upgStats = {};
+let entities = { bullets: [], enemies: [], particles: [], floatTexts: [], enemyBullets: [] };
+let waveEnemiesLeft = 0;
+let backgroundLines = 0;
+
+function getE(id) { return document.getElementById(id); }
+
+function selectShip(idx) {
+  shipIdx = idx;
+  for(let i=0; i<3; i++) getE('ship-'+i).classList.toggle('selected', i===idx);
+}
+function selectDiff(idx) {
+  diffIdx = idx;
+  for(let i=0; i<3; i++) getE('diff-'+i).classList.toggle('selected', i===idx);
+}
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  if(id) getE(id).classList.add('active');
+}
+
+function showTitle() {
+  gameState = 'title';
+  showScreen('screen-title');
+  if (rafId) cancelAnimationFrame(rafId);
+}
+
+function startGame() {
+  initAudio();
+  gameState = 'playing';
+  score = 0; wave = 0; frame = 0;
+  upgStats = { fireRate: 0, bulletCount: 0, damage: 0, spread: 0 };
+  entities = { bullets: [], enemies: [], particles: [], floatTexts: [], enemyBullets: [] };
+  
+  const baseShip = SHIPS[shipIdx];
+  player = {
+    x: W / 2, y: H - 100, radius: 12, hp: 5, maxHp: 5,
+    color: baseShip.color, base: baseShip,
+    lastShot: 0, invincibility: 0
+  };
+  
+  showScreen(null);
+  nextWave();
+  if (rafId) cancelAnimationFrame(rafId);
+  loop();
+}
+
+function nextWave() {
+  wave++;
+  
+  // 보스전 기획 (5웨이브, 10웨이브 전용 스폰)
+  if (wave === 5 || wave === 10) {
+    waveEnemiesLeft = 1; // 단 한 마리의 최강 보스
+  } else {
+    waveEnemiesLeft = 8 + wave * 3;
+  }
+}
+
+function showUpgrade() {
+  gameState = 'upgrade';
+  getE('upg-desc').innerText = `웨이브 ${wave} 클리어! 시스템 강화를 선택하세요.`;
+  
+  const pool = [...UPGRADES].sort(() => Math.random() - 0.5).slice(0, 3);
+  const cont = getE('upgrade-container');
+  cont.innerHTML = '';
+  
+  pool.forEach(u => {
+    const d = document.createElement('div');
+    d.className = 'upg-card';
+    d.innerHTML = `<div class="upg-icon">${u.icon}</div><div class="upg-info"><div class="font-bold text-sm text-white">${u.name}</div><div class="text-[10px] text-gray-400">${u.desc}</div></div>`;
+    d.onclick = () => applyUpgrade(u.id);
+    cont.appendChild(d);
+  });
+  
+  showScreen('screen-upgrade');
+}
+
+function applyUpgrade(id) {
+  playSound('upgrade');
+  if (id === 'heal') {
+    player.hp = Math.min(player.hp + 2, player.maxHp);
+  } else {
+    upgStats[id]++;
+  }
+  
+  showScreen(null);
+  gameState = 'playing';
+  nextWave();
+  
+  if (rafId) cancelAnimationFrame(rafId);
+  loop();
+}
+
+function gameOver(isVictory = false) {
+  gameState = 'gameover';
+  const titleEl = getE('go-title');
+  
+  if (isVictory) {
+    titleEl.innerText = "MISSION CLEAR";
+    titleEl.className = "text-4xl font-sci font-black text-green-400 mb-2 text-glow-green";
+    getE('go-wave').innerText = "CONGRATULATIONS! ALL WAVES DEFEATED";
+  } else {
+    titleEl.innerText = "GAME OVER";
+    titleEl.className = "text-4xl font-sci font-black text-red-500 mb-2 text-glow-red";
+    getE('go-wave').innerText = `WAVE ${wave}에서 격추되었습니다`;
+  }
+  
+  getE('go-score').innerText = score;
+  showScreen('screen-gameover');
+}
+
+function addParticle(x, y, color, speed, size, count) {
+  for(let i=0; i<count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const v = Math.random() * speed + 1;
+    entities.particles.push({
+      x, y,
+      vx: Math.cos(angle) * v, vy: Math.sin(angle) * v,
+      color, size: Math.random() * size + 2,
+      life: 1.0, decay: Math.random() * 0.03 + 0.02
+    });
+  }
+}
+
+function addFloatText(x, y, text, color) {
+  entities.floatTexts.push({ x, y, text, color, life: 1.0, vy: -1.5 });
+}
+
+function applyHitStop(frames, sPower) {
+  hitStop = frames;
+  shakePower = sPower;
+}
+
+function spawnEnemy() {
+  if (waveEnemiesLeft <= 0) return;
+
+  const diff = DIFFS[diffIdx];
+  const hpMul = diff.hpMul * (1 + wave * 0.1);
+  const spdMul = diff.spdMul * (1 + wave * 0.05);
+
+  // 5웨이브 / 10웨이브 보스 전용 스폰 분기
+  if (wave === 5 || wave === 10) {
+    // 이미 보스가 전장에 존재한다면 스폰 생략
+    if (entities.enemies.some(e => e.type === 'mid-boss' || e.type === 'final-boss')) return;
+    
+    waveEnemiesLeft = 0; // 한 번만 스폰하도록 고정
+    const isFinal = (wave === 10);
+    
+    let boss = {
+      x: W / 2, y: -80,
+      w: isFinal ? 90 : 70, h: isFinal ? 90 : 70,
+      hp: (isFinal ? 160 : 70) * hpMul,
+      maxHp: 0,
+      color: isFinal ? '#ff0033' : '#ff9900',
+      spd: 1.6,
+      vx: 2.2,
+      type: isFinal ? 'final-boss' : 'mid-boss',
+      flash: 0,
+      angle: 0,
+      shootTimer: 0,
+      pattern: 0,
+      patternTimer: 0
+    };
+    boss.maxHp = boss.hp;
+    entities.enemies.push(boss);
+
+    // 긴장감 넘치는 보스 경고음 & 흔들림 유발
+    addFloatText(W / 2, H / 3, isFinal ? "🚨 WARNING: VOID COMMANDER" : "⚠️ WARNING: HEAVY MECH", boss.color);
+    vibe([300, 100, 300, 100, 400]);
+    applyHitStop(20, 30);
+    return;
+  }
+
+  // 일반 잡몹 스폰 딜레이 계산
+  if (frame % Math.max(20, 60 - wave * 2) !== 0) return;
+  waveEnemiesLeft--;
+
+  const type = Math.random();
+  let e = {
+    x: Math.random() * (W - 60) + 30, y: -30,
+    w: 24, h: 24, hp: 0, maxHp: 0,
+    color: '#ff2255', spd: 0, vx: 0, type: 'basic', flash: 0,
+    angle: 0
+  };
+
+  if (type > 0.8 && wave > 1) { // 묵직한 탱커형 적
+    e.w = 40; e.h = 40; e.hp = 8 * hpMul; e.spd = 1.3 * spdMul; e.color = '#ffb800'; e.type = 'tank';
+  } else if (type > 0.5) { // 현란한 지그재그형 적
+    e.w = 20; e.h = 20; e.hp = 3 * hpMul; e.spd = 2.4 * spdMul; e.color = '#ff33bb'; e.type = 'zigzag'; e.phase = Math.random() * Math.PI;
+  } else { // 기본 돌진 적
+    e.w = 26; e.h = 26; e.hp = 2 * hpMul; e.spd = 3.2 * spdMul; e.color = '#00ffaa';
+  }
+  e.maxHp = e.hp;
+  entities.enemies.push(e);
+}
+
+function drawNeonPoly(cx, cy, radius, sides, color, angle = 0, isStroke=true) {
+  ctx.beginPath();
+  for (let i = 0; i < sides; i++) {
+    const a = angle + (i * Math.PI * 2) / sides;
+    const px = cx + Math.cos(a) * radius;
+    const py = cy + Math.sin(a) * radius;
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.shadowBlur = 15;
+  ctx.shadowColor = color;
+  if (isStroke) {
+    ctx.lineWidth = 3; ctx.strokeStyle = color; ctx.stroke();
+    ctx.lineWidth = 1; ctx.strokeStyle = '#fff'; ctx.stroke();
+  } else {
+    ctx.fillStyle = color; ctx.fill();
+  }
+  ctx.shadowBlur = 0; // reset
+}
+
+function drawGrid() {
+  ctx.fillStyle = '#050508';
+  ctx.fillRect(0, 0, W, H);
+  
+  backgroundLines += 2;
+  if (backgroundLines > 50) backgroundLines = 0;
+  
+  ctx.strokeStyle = 'rgba(0, 100, 255, 0.1)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for(let x = 0; x < W; x += 50) { ctx.moveTo(x, 0); ctx.lineTo(x, H); }
+  for(let y = backgroundLines; y < H; y += 50) { ctx.moveTo(0, y); ctx.lineTo(W, y); }
+  ctx.stroke();
+}
+
+function update() {
+  frame++;
+  
+  // 키보드 이동 로직
+  const spd = player.base.speed;
+  if (keys['a'] || keys['arrowleft']) player.x -= spd;
+  if (keys['d'] || keys['arrowright']) player.x += spd;
+  if (keys['w'] || keys['arrowup']) player.y -= spd;
+  if (keys['s'] || keys['arrowdown']) player.y += spd;
+  
+  if (isTouch) {
+    player.x += (touchX - player.x) * 0.2;
+    player.y += (touchY - player.y) * 0.2 - 10;
+  }
+
+  // 화면 경계선 강제 조절
+  player.x = Math.max(20, Math.min(W-20, player.x));
+  player.y = Math.max(20, Math.min(H-20, player.y));
+
+  if (player.invincibility > 0) player.invincibility--;
+
+  // 플레이어 자동 사격 엔진
+  const fireInterval = Math.max(3, player.base.fireRate - upgStats.fireRate * 2);
+  if (frame - player.lastShot >= fireInterval) {
+    player.lastShot = frame;
+    playSound('shoot');
+    const bc = player.base.bulletCount + upgStats.bulletCount;
+    const spreadAngle = 0.05 + upgStats.spread * 0.05;
+    
+    for (let i = 0; i < bc; i++) {
+      const offset = (i - (bc - 1) / 2);
+      entities.bullets.push({
+        x: player.x + offset * 8, y: player.y - 15,
+        vx: offset * spreadAngle * 10, vy: -15,
+        dmg: player.base.damage + upgStats.damage,
+        color: player.color
+      });
+    }
+  }
+
+  // 엔진 부스터 파티클 효과 (잔상 대용)
+  if (frame % 2 === 0) {
+    entities.particles.push({
+      x: player.x + (Math.random()-0.5)*10, y: player.y + 10,
+      vx: 0, vy: 5 + Math.random()*2,
+      color: '#0cf', size: 3 + Math.random()*3, life: 1, decay: 0.08
+    });
+  }
+
+  spawnEnemy();
+
+  // 적 개체 로직 & 탄막 연사 엔진
+  entities.enemies.forEach(e => {
+    e.angle += 0.05;
+    if (e.flash > 0) e.flash--;
+
+    // 보스 개체 AI 구현
+    if (e.type === 'mid-boss' || e.type === 'final-boss') {
+      // 등장 씬 연출 (서서히 유입)
+      if (e.y < 130) {
+        e.y += 1.2;
+      } else {
+        // 좌우 왕복 이동식 배틀 크루징
+        e.x += e.vx;
+        if (e.x < 70 || e.x > W - 70) e.vx *= -1;
+
+        e.shootTimer++;
+        e.patternTimer++;
+
+        // 보스 공격 패턴 순환 사이클
+        if (e.patternTimer > 240) {
+          e.pattern = (e.pattern + 1) % (e.type === 'final-boss' ? 3 : 2);
+          e.patternTimer = 0;
+        }
+
+        // 탄막 공격 실행 프레임 레이트
+        const bFreq = e.type === 'final-boss' ? 24 : 40;
+        if (e.shootTimer % bFreq === 0) {
+          if (e.type === 'mid-boss') {
+            playSound('boss_laser');
+            if (e.pattern === 0) {
+              // 3방향 확산 캐논 포화
+              for (let angle = -0.35; angle <= 0.35; angle += 0.35) {
+                entities.enemyBullets.push({
+                  x: e.x, y: e.y + e.h/2,
+                  vx: Math.sin(angle) * 4.2, vy: Math.cos(angle) * 4.2,
+                  radius: 7, color: '#ff7700', life: 1
+                });
+              }
+            } else {
+              // 조준 유도 대형 저격 레이저 구체
+              const dx = player.x - e.x;
+              const dy = player.y - e.y;
+              const dist = Math.hypot(dx, dy);
+              entities.enemyBullets.push({
+                x: e.x, y: e.y + e.h/2,
+                vx: (dx / dist) * 5.5, vy: (dy / dist) * 5.5,
+                radius: 10, color: '#ff00aa', life: 1
+              });
+            }
+          } else if (e.type === 'final-boss') {
+            playSound('boss_laser');
+            if (e.pattern === 0) {
+              // 전방향 폭발형 서클 메가 휠 탄막
+              for (let a = 0; a < Math.PI * 2; a += Math.PI / 8) {
+                entities.enemyBullets.push({
+                  x: e.x, y: e.y,
+                  vx: Math.cos(a) * 3.8, vy: Math.sin(a) * 3.8,
+                  radius: 6, color: '#ff2200', life: 1
+                });
+              }
+            } else if (e.pattern === 1) {
+              // 플레이어 예측 타격 3구 저격 레이저 탄막
+              const dx = player.x - e.x;
+              const dy = player.y - e.y;
+              const dist = Math.hypot(dx, dy);
+              for (let offset = -0.2; offset <= 0.2; offset += 0.2) {
+                entities.enemyBullets.push({
+                  x: e.x, y: e.y + e.h/2,
+                  vx: Math.cos(Math.atan2(dy, dx) + offset) * 6,
+                  vy: Math.sin(Math.atan2(dy, dx) + offset) * 6,
+                  radius: 7, color: '#00ffff', life: 1
+                });
+              }
+            } else {
+              // 나선 은하 비 내리기 포화 패턴
+              const spAngle = (frame * 0.15);
+              entities.enemyBullets.push({
+                x: e.x + Math.cos(spAngle) * 30, y: e.y + Math.sin(spAngle) * 15,
+                vx: Math.cos(spAngle) * 1.5, vy: 5,
+                radius: 5, color: '#ffff00', life: 1
+              });
+              entities.enemyBullets.push({
+                x: e.x - Math.cos(spAngle) * 30, y: e.y - Math.sin(spAngle) * 15,
+                vx: -Math.cos(spAngle) * 1.5, vy: 5,
+                radius: 5, color: '#ffff00', life: 1
+              });
+            }
+          }
+        }
+      }
+    } else {
+      // 일반 졸개들 개별 움직임
+      e.y += e.spd;
+      if (e.type === 'zigzag') {
+        e.x += Math.sin(e.y * 0.05 + e.phase) * 3;
+      }
+    }
+    
+    // 플레이어 충돌 감지
+    if (player.invincibility === 0 && Math.hypot(player.x - e.x, player.y - e.y) < player.radius + e.w/2) {
+      player.hp--;
+      player.invincibility = 60;
+      applyHitStop(12, 25);
+      playSound('player_hit');
+      vibe([100, 50, 100]);
+      addParticle(player.x, player.y, '#f00', 8, 6, 20);
+      if (player.hp <= 0) gameOver();
+    }
+  });
+
+  // 적 탄막 충돌 엔진 처리 루프
+  entities.enemyBullets.forEach(b => {
+    b.x += b.vx;
+    b.y += b.vy;
+    
+    if (player.invincibility === 0 && Math.hypot(player.x - b.x, player.y - b.y) < player.radius + b.radius) {
+      player.hp--;
+      player.invincibility = 60;
+      applyHitStop(10, 20);
+      playSound('player_hit');
+      vibe([80, 50, 80]);
+      addParticle(player.x, player.y, '#ff3300', 7, 5, 15);
+      b.life = 0; // 탄소멸 처리
+      if (player.hp <= 0) gameOver();
+    }
+  });
+
+  // 아군 탄환 궤적 및 타격 엔진
+  entities.bullets.forEach(b => {
+    b.x += b.vx; b.y += b.vy;
+    let hit = false;
+    entities.enemies.forEach(e => {
+      if (hit || e.hp <= 0) return;
+      if (Math.abs(b.x - e.x) < e.w/2 + 5 && Math.abs(b.y - e.y) < e.h/2 + 5) {
+        e.hp -= b.dmg;
+        e.flash = 3;
+        hit = true;
+        addParticle(b.x, b.y, e.color, 4, 3, 5);
+        playSound('hit');
+        
+        if (e.hp <= 0) {
+          // 보스 전용 폭발 가중치
+          const isBoss = (e.type === 'mid-boss' || e.type === 'final-boss');
+          applyHitStop(isBoss ? 15 : 4, isBoss ? 28 : 10);
+          vibe(isBoss ? [100, 50, 200, 50, 300] : [40]);
+          playSound('explosion');
+          addParticle(e.x, e.y, e.color, isBoss ? 12 : 7, isBoss ? 7 : 5, isBoss ? 40 : 15);
+          
+          const pts = Math.floor(e.maxHp * 15 * DIFFS[diffIdx].scoreMul);
+          score += pts;
+          addFloatText(e.x, e.y, pts, e.color);
+        }
+      }
+    });
+    if (hit) b.life = 0;
+  });
+
+  // 파괴 및 화면 이탈 개체 실시간 필터링 정리
+  entities.bullets = entities.bullets.filter(b => b.y > -20 && b.life !== 0);
+  entities.enemies = entities.enemies.filter(e => e.y < H + 80 && e.hp > 0);
+  entities.enemyBullets = entities.enemyBullets.filter(b => b.y < H + 30 && b.y > -30 && b.x > -30 && b.x < W + 30 && b.life !== 0);
+  
+  entities.particles = entities.particles.filter(p => {
+    p.x += p.vx; p.y += p.vy;
+    p.vx *= 0.94; p.vy *= 0.94; // 마찰 가중치 부여
+    p.life -= p.decay;
+    return p.life > 0;
+  });
+  entities.floatTexts = entities.floatTexts.filter(f => {
+    f.y += f.vy; f.life -= 0.02; return f.life > 0;
+  });
+
+  // 다음 웨이브로 진행 검사 트리거
+  if (gameState === 'playing' && waveEnemiesLeft <= 0 && entities.enemies.length === 0) {
+    if (wave === 10) {
+      // 10웨이브 클리어 엔딩 승리
+      gameOver(true);
+    } else {
+      showUpgrade();
+    }
+  }
+}
+
+function draw() {
+  drawGrid();
+
+  // 흔들림 이펙트 뷰포트 격발 가중치 적용
+  if (shakePower > 0) {
+    shakeX = (Math.random() - 0.5) * shakePower;
+    shakeY = (Math.random() - 0.5) * shakePower;
+    shakePower *= 0.85;
+    if (shakePower < 0.5) shakePower = 0;
+  }
+  ctx.save();
+  ctx.translate(shakeX, shakeY);
+
+  // 이펙트 파티클 렌더링
+  ctx.globalCompositeOperation = 'screen';
+  entities.particles.forEach(p => {
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
+  });
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.globalAlpha = 1.0;
+
+  // 적 유닛 렌더링
+  entities.enemies.forEach(e => {
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    if (e.type === 'zigzag') ctx.rotate(e.angle);
+    
+    if (e.flash > 0) {
+      ctx.fillStyle = '#fff';
+      ctx.shadowBlur = 25; ctx.shadowColor = '#fff';
+      if (e.type === 'tank') ctx.fillRect(-e.w/2, -e.h/2, e.w, e.h);
+      else if (e.type === 'mid-boss' || e.type === 'final-boss') drawNeonPoly(0, 0, e.w/2, 8, '#fff', e.angle, false);
+      else { ctx.beginPath(); ctx.arc(0,0, e.w/2, 0, Math.PI*2); ctx.fill(); }
+    } else {
+      if (e.type === 'tank') {
+        drawNeonPoly(0, 0, e.w/2, 4, e.color, Math.PI/4);
+      } else if (e.type === 'mid-boss') {
+        drawNeonPoly(0, 0, e.w/2, 8, e.color, e.angle);
+        drawNeonPoly(0, 0, e.w/4, 4, '#fff', -e.angle);
+      } else if (e.type === 'final-boss') {
+        drawNeonPoly(0, 0, e.w/2, 12, e.color, -e.angle);
+        drawNeonPoly(0, 0, e.w/3, 6, '#0cf', e.angle * 2);
+      } else {
+        drawNeonPoly(0, 0, e.w/2, e.type==='zigzag'?3:6, e.color, 0);
+      }
+    }
+    
+    // 일반 적 실시간 HP 바 렌더링
+    if (e.hp < e.maxHp && e.type !== 'mid-boss' && e.type !== 'final-boss') {
+      ctx.fillStyle = '#111116'; ctx.fillRect(-15, e.h/2 + 7, 30, 4);
+      ctx.fillStyle = e.color; ctx.fillRect(-15, e.h/2 + 7, 30 * (e.hp/e.maxHp), 4);
+    }
+    ctx.restore();
+  });
+
+  // 적군 발사 탄막 렌더 가시화
+  entities.enemyBullets.forEach(b => {
+    ctx.shadowBlur = 10; ctx.shadowColor = b.color;
+    ctx.fillStyle = b.color;
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.radius, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.radius*0.4, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+  });
+
+  // 아군 발사 레이저 탄환 가시화
+  entities.bullets.forEach(b => {
+    ctx.shadowBlur = 10; ctx.shadowColor = b.color;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(b.x - 2, b.y - 8, 4, 16);
+    ctx.shadowBlur = 0;
+  });
+
+  // 플레이어 아군 기체 렌더링
+  if (player.invincibility === 0 || Math.floor(frame / 5) % 2 === 0) {
+    drawNeonPoly(player.x, player.y, player.radius + 4, 3, player.color, -Math.PI/2);
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(player.x, player.y, 3, 0, Math.PI*2); ctx.fill();
+  }
+
+  // 데미지 플로팅 대미지 가시화
+  entities.floatTexts.forEach(f => {
+    ctx.globalAlpha = f.life;
+    ctx.fillStyle = f.color;
+    ctx.font = 'bold 16px "Orbitron"';
+    ctx.textAlign = 'center';
+    ctx.shadowBlur = 5; ctx.shadowColor = f.color;
+    ctx.fillText(f.text, f.x, f.y);
+  });
+  
+  ctx.globalAlpha = 1.0;
+  ctx.shadowBlur = 0;
+  ctx.restore();
+
+  // 상단 헤드업 디스플레이 (HUD)
+  if (gameState === 'playing') {
+    ctx.fillStyle = 'rgba(5, 5, 10, 0.85)';
+    ctx.fillRect(0, 0, W, 50);
+    
+    ctx.fillStyle = '#0cf'; ctx.font = 'bold 20px "Orbitron"'; ctx.textAlign = 'left';
+    ctx.fillText(String(score).padStart(6, '0'), 20, 32);
+    
+    ctx.fillStyle = '#ffb800'; ctx.textAlign = 'center';
+    ctx.fillText(`WAVE ${wave}`, W/2, 32);
+    
+    for (let i = 0; i < player.maxHp; i++) {
+      ctx.fillStyle = i < player.hp ? '#0cf' : '#1e1e24';
+      ctx.shadowBlur = i < player.hp ? 10 : 0;
+      ctx.shadowColor = '#0cf';
+      ctx.fillRect(W - 30 - i * 15, 20, 10, 12);
+    }
+    ctx.shadowBlur = 0;
+
+    // 보스 특화 전용 연출 상부 HP 게이지 디자인 바
+    const boss = entities.enemies.find(e => e.type === 'mid-boss' || e.type === 'final-boss');
+    if (boss) {
+      const barW = W - 100;
+      ctx.fillStyle = 'rgba(0,0,0,0.6)';
+      ctx.fillRect(50, 64, barW, 12);
+      ctx.fillStyle = boss.color;
+      ctx.shadowBlur = 12; ctx.shadowColor = boss.color;
+      ctx.fillRect(50, 64, barW * (boss.hp / boss.maxHp), 12);
+      ctx.shadowBlur = 0;
+      
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 11px "Orbitron"'; ctx.textAlign = 'center';
+      ctx.fillText(boss.type === 'final-boss' ? "⚠️ UNKNOWN THREAT DETECTED : THE VOID COMMANDER" : "🛡️ MECH BOSS ASSAULT UNIT", W/2, 58);
+    }
+  }
+}
+
+function loop() {
+  if (gameState !== 'playing') return;
+  rafId = requestAnimationFrame(loop);
+
+  // 피격/격파 시 긴장감 유발용 히트스탑
+  if (hitStop > 0) {
+    hitStop--;
+    draw();
+    return;
+  }
+
+  update();
+  draw();
+}
+
+window.addEventListener('keydown', e => { keys[e.key.toLowerCase()] = true; });
+window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+
+canvas.addEventListener('touchstart', e => {
+  isTouch = true;
+  const rect = canvas.getBoundingClientRect();
+  const touch = e.touches[0];
+  const scaleX = W / rect.width;
+  const scaleY = H / rect.height;
+  touchX = (touch.clientX - rect.left) * scaleX;
+  touchY = (touch.clientY - rect.top) * scaleY;
+});
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  const touch = e.touches[0];
+  touchX = (touch.clientX - rect.left) * (W / rect.width);
+  touchY = (touch.clientY - rect.top) * (H / rect.height);
+});
+canvas.addEventListener('touchend', () => { isTouch = false; });
+canvas.addEventListener('touchcancel', () => { isTouch = false; });
+
+// 첫 기동 초기화
+showTitle();
+</script>
+</body>
+</html>
